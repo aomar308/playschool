@@ -56,16 +56,23 @@ function actName(w,d,a){return planOf(w,d)[a]||('Activity '+(a+1))}
 
 async function init(){
   render();
-  let cl=null;
-  try{if(FIREBASE_CONFIG.apiKey!=='PASTE'){firebase.initializeApp(FIREBASE_CONFIG);cl=firebase.firestore()}}catch(e){}
-  if(!cl){S.msg='Database not connected. Open SETUP.md and paste your Firebase settings at the top of this file.';render();return}
+  let cl=null,why='';
+  try{
+    if(typeof FIREBASE_CONFIG==='undefined')why='config.js was not found. Upload config.js next to index.html.';
+    else if(FIREBASE_CONFIG.apiKey==='PASTE'||FIREBASE_CONFIG.projectId==='PASTE')why='config.js still has PASTE. Put your Firebase settings in config.js.';
+    else if(typeof firebase==='undefined')why='Firebase library did not load. Check the internet connection.';
+    else{firebase.initializeApp(FIREBASE_CONFIG);cl=firebase.firestore()}
+  }catch(e){why='Firebase error: '+e.message}
+  if(!cl){S.msg='Database not connected. '+why;render();return}
   S.db=cl;
-  cl.collection('plan').onSnapshot(s=>{S.plans={};s.docs.forEach(d=>S.plans[d.id]=d.data());S.ready=1;rr()});
-  cl.collection('miss').onSnapshot(s=>{S.miss=s.docs.map(d=>d.data());S.ready=1;rr()});
-  cl.collection('roster').onSnapshot(s=>{S.roster={};s.docs.forEach(d=>S.roster[d.id]=d.data().list||[]);S.ready=1;rr()});
-  cl.collection('holiday').onSnapshot(s=>{S.hol={};s.docs.forEach(d=>S.hol[d.id]=d.data().name||'Holiday');S.ready=1;rr()});
-  cl.collection('absent').onSnapshot(s=>{S.abs=s.docs.map(d=>d.data());S.ready=1;rr()});
-  cl.collection('done').onSnapshot(s=>{S.done=s.docs.map(d=>d.data());S.ready=1;rr()});
+  const on=(n,f)=>cl.collection(n).onSnapshot(s=>{f(s);S.ready=1;rr()},e=>{S.msg='Database error ('+n+'): '+(e.code||e.message)+(e.code=='permission-denied'?' \u2013 publish the Firestore rules.':'');render()});
+  on('plan',s=>{S.plans={};s.docs.forEach(d=>S.plans[d.id]=d.data())});
+  on('miss',s=>{S.miss=s.docs.map(d=>d.data())});
+  on('roster',s=>{S.roster={};s.docs.forEach(d=>S.roster[d.id]=d.data().list||[])});
+  on('holiday',s=>{S.hol={};s.docs.forEach(d=>S.hol[d.id]=d.data().name||'Holiday')});
+  on('absent',s=>{S.abs=s.docs.map(d=>d.data())});
+  on('done',s=>{S.done=s.docs.map(d=>d.data())});
+  setTimeout(()=>{if(!S.ready&&!S.msg){S.msg='Still connecting\u2026 check the internet, the settings in config.js, and the Firestore rules.';render()}},8000);
 }
 function rr(){const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&a.id)return;render()}
 
