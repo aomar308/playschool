@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Playschool Tracker</title>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#ef6c4d">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#fff8ee;--card:#fff;--tx:#2b2a33;--mu:#6e6b7b;--pr:#ef6c4d;--ok:#2e9e6b;--bd:#eadfce;--bad:#d64550;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#1d1b22;--card:#2a2731;--tx:#f1eef6;--mu:#a29db0;--bd:#3d3948;--pr:#ff8a6b}}
+:root[data-theme=dark]{--bg:#1d1b22;--card:#2a2731;--tx:#f1eef6;--mu:#a29db0;--bd:#3d3948;--pr:#ff8a6b}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:70px}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--pr);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;z-index:5}
+header b{font-size:18px}header button{background:#fff3;color:#fff;border:0;border-radius:8px;padding:6px 10px}
+main{padding:12px;max-width:640px;margin:auto}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:12px}
+h3{margin:0 0 8px;font-size:16px}.mu{color:var(--mu);font-size:13px}
+button,select,input,textarea{font:inherit;color:var(--tx)}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);margin:3px 0}
+.btn{background:var(--pr);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600}
+.btn.sec{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}.btn.ok{background:var(--ok)}.btn.bad{background:var(--bad)}
+nav{overflow-x:auto;position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1 0 auto;border:0;background:none;padding:12px 10px;color:var(--mu);font-size:13px;white-space:nowrap}nav button.on{color:var(--pr);font-weight:700}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sp{justify-content:space-between}
+.days{display:flex;gap:6px;margin-bottom:10px}.days button{flex:1;padding:8px 0;border-radius:10px;border:1px solid var(--bd);background:var(--card)}.days button.on{background:var(--pr);color:#fff;border-color:var(--pr)}
+.chip{display:inline-block;margin:3px;padding:7px 11px;border-radius:99px;border:1px solid var(--bd);background:var(--bg)}
+.chip.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+.chip.m{background:var(--bad);color:#fff;border-color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;border-bottom:1px solid var(--bd);text-align:left}
+.wrap{overflow-x:auto}.badge{background:var(--bad);color:#fff;border-radius:99px;padding:1px 8px;font-size:12px}
+.pin{display:grid;gap:8px}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head><body><div id="app"></div>
+<script>
+/* ====== SETUP: paste your Firebase web-app settings here (see SETUP.md) ====== */
+const FIREBASE_CONFIG={apiKey:"AIzaSyAI1LgBnahayaS6Xwi3LT_swFdsaoRwTLM",authDomain:"playschool-tracker-e2131.firebaseapp.com",projectId:"playschool-tracker-e2131",storageBucket:"playschool-tracker-e2131.firebasestorage.app",messagingSenderId:"279129158338",appId:"1:279129158338:web:c0a05db075d813425d815b",measurementId:"G-9X0293LWSJ"};
+const DEMO=false; /* true = demo copy: plan is never locked */
+/* =========================================================================== */
+const PINS={c1:'1111',c2:'2222',c3:'3333',c4:'4444',c5:'5555',c6:'6666',c7:'7777',s1:'1234',s2:'1234'};
+const CN=['Parrots','Swans','Doves','Bluebirds','Flamingos','Penguins','Seagulls'];
+const NAME=r=>r[0]=='c'?CN[r[1]-1]:'Supervisor '+r[1];
+const DAYS=['Sun','Mon','Tue','Wed','Thu'],REASONS=['Absent','Sick','Other'];
+const CL=['c1','c2','c3','c4','c5','c6','c7'];
+const S={me:null,wk:sunday(new Date()),day:Math.min(Math.max(new Date().getDay(),0),4),tab:'today',plans:{},miss:[],roster:{},reason:'Absent',cls:'c1',db:null,ready:false,hol:{},abs:[],done:[],pv:'day',msg:''};
+try{S.me=localStorage.getItem('pt_me')}catch(e){}
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function sunday(d){const x=new Date(d);x.setDate(x.getDate()-x.getDay());return iso(x)}
+function shift(w,n){const d=new Date(w+'T12:00:00');d.setDate(d.getDate()+n);return iso(d)}
+function dayDate(w,d){return shift(w,d).slice(5)}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+const planOf=(w,d)=>(S.plans[w+'_'+d]||{acts:['','','','','']}).acts;
+const ros=c=>S.roster[c]||[];
+const holOf=(w,d)=>S.hol[shift(w,d)];
+const stuName=(c,id)=>(ros(c).find(s=>s.id==id)||{n:'(removed)'}).n;
+const mkey=m=>[m.week,m.c,m.sid,m.d,m.a].join('_');
+function actName(w,d,a){return planOf(w,d)[a]||('Activity '+(a+1))}
+
+async function init(){
+  render();
+  let cl=null;
+  try{if(FIREBASE_CONFIG.apiKey!=='PASTE'){firebase.initializeApp(FIREBASE_CONFIG);cl=firebase.firestore()}}catch(e){}
+  if(!cl){S.msg='Database not connected. Open SETUP.md and paste your Firebase settings at the top of this file.';render();return}
+  S.db=cl;
+  cl.collection('plan').onSnapshot(s=>{S.plans={};s.docs.forEach(d=>S.plans[d.id]=d.data());S.ready=1;rr()});
+  cl.collection('miss').onSnapshot(s=>{S.miss=s.docs.map(d=>d.data());S.ready=1;rr()});
+  cl.collection('roster').onSnapshot(s=>{S.roster={};s.docs.forEach(d=>S.roster[d.id]=d.data().list||[]);S.ready=1;rr()});
+  cl.collection('holiday').onSnapshot(s=>{S.hol={};s.docs.forEach(d=>S.hol[d.id]=d.data().name||'Holiday');S.ready=1;rr()});
+  cl.collection('absent').onSnapshot(s=>{S.abs=s.docs.map(d=>d.data());S.ready=1;rr()});
+  cl.collection('done').onSnapshot(s=>{S.done=s.docs.map(d=>d.data());S.ready=1;rr()});
+}
+function rr(){const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&a.id)return;render()}
+
+function login(){
+  const r=$('role').value,p=$('pin').value;
+  if(PINS[r]!==p){S.msg='Wrong PIN';return render()}
+  S.me=r;S.msg='';S.tab=r[0]=='c'?'today':'overview';if(r[0]=='c')S.cls=r;
+  try{localStorage.setItem('pt_me',r)}catch(e){}render();
+}
+function logout(){S.me=null;try{localStorage.removeItem('pt_me')}catch(e){}render()}
+async function w(fn){try{await fn()}catch(e){S.msg='Save failed: '+(e.message||e.code);render()}}
+
+function toggleMiss(sid,a){
+  const m={week:S.wk,c:S.me,sid,d:S.day,a,reason:S.reason};
+  const ex=S.miss.find(x=>mkey(x)==mkey(m));
+  const ref=S.db.doc('miss/'+mkey(m));
+  const aref=S.db.doc('absent/'+mkey(m));
+  if(ex){S.miss=S.miss.filter(x=>x!==ex);S.abs=S.abs.filter(x=>mkey(x)!=mkey(m));render();w(()=>ref.delete());w(()=>aref.delete())}
+  else{S.miss.push(m);if(m.reason!='Other'){S.abs.push(m);w(()=>aref.set(m))}render();w(()=>ref.set(m))}
+}
+function doneLater(k){S.miss=S.miss.filter(x=>mkey(x)!=k);render();w(()=>S.db.doc('miss/'+k).delete())}
+function planLocked(){return !DEMO&&iso(new Date())>=S.wk}
+function savePlan(){
+  if(planLocked())return;
+  [0,1,2,3,4].forEach(d=>{const acts=[$('act'+d).value.trim(),'','','',''],subs=[0,1,2,3,4].map(i=>$('sub'+d+'_'+i).value.trim());
+    const o={week:S.wk,d,acts,subs};S.plans[S.wk+'_'+d]=o;w(()=>S.db.doc('plan/'+S.wk+'_'+d).set(o))});
+  S.msg='Week plan saved ✓';render();
+}
+function saveRoster(){
+  const names=$('names').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const old=ros(S.me);
+  const list=names.map(n=>old.find(s=>s.n==n)||{id:'s'+Math.random().toString(36).slice(2,8),n});
+  S.roster[S.me]=list;w(()=>S.db.doc('roster/'+S.me).set({list}));S.msg='Students saved ✓ ('+list.length+')';render();
+}
+const setTab=t=>{S.tab=t;S.msg='';render()};
+const setDay=d=>{S.day=d;render()};
+const setWk=n=>{S.wk=shift(S.wk,7*n);render()};
+
+function weekBar(){return `<div class="row sp card"><button class="btn sec" onclick="setWk(-1)">‹</button><div style="text-align:center"><b>Week of ${S.wk}</b><div class="mu">Sun ${dayDate(S.wk,0)} – Thu ${dayDate(S.wk,4)}</div></div><button class="btn sec" onclick="setWk(1)">›</button></div>`}
+function dayBar(){return `<div class="days">${DAYS.map((n,i)=>`<button class="${S.day==i?'on':''}" onclick="setDay(${i})">${n}<br><small>${holOf(S.wk,i)?'🏖️':dayDate(S.wk,i)}</small></button>`).join('')}</div>`}
+
+function today(){
+  const c=S.me,acts=planOf(S.wk,S.day),st=ros(c);
+  if(holOf(S.wk,S.day))return weekBar()+dayBar()+`<div class="card"><h3>🏖️ Holiday</h3>${esc(holOf(S.wk,S.day))} – no activity today, nothing to mark.</div>`;
+  let h=weekBar()+dayBar()+`<div class="card"><h3>Reason when marking a miss</h3><div class="row">${REASONS.map(r=>`<button class="chip ${S.reason==r?'m':''}" onclick="S.reason='${r}';render()">${r}</button>`).join('')}</div></div>`;
+  if(!st.length)h+=`<div class="card">No students yet – add them in the <b>Students</b> tab.</div>`;
+  acts.forEach((t,a)=>{
+    if(!t)return;
+    const ms=S.miss.filter(m=>m.week==S.wk&&m.c==c&&m.d==S.day&&m.a==a);
+    h+=`<div class="card"><div class="row sp"><h3>${esc(t)}</h3><span class="badge">${ms.length} missed</span></div><div class="mu">${(((S.plans[S.wk+'_'+S.day]||{}).subs)||[]).filter(Boolean).map((x,i)=>(i+1)+'. '+esc(x)).join(' · ')}</div><div class="mu">Tap a child who did NOT do it. Tap again to undo.</div>${st.map(s=>{const m=ms.find(x=>x.sid==s.id);return `<button class="chip ${m?'m':''}" onclick="toggleMiss('${s.id}',${a})">${esc(s.n)}${m?' · '+esc(m.reason):''}</button>`}).join('')}</div>`;
+  });
+  if(!acts.some(Boolean))h+=`<div class="card mu">No activities set for this day. Go to the <b>Plan</b> tab.</div>`;
+  return h;
+}
+function plan(){
+  const lk=planLocked();
+  return weekBar()+`<div class="card"><h3>Weekly plan – one activity per day, 5 sub-activities each</h3><div class="mu">${lk?'🔒 This week started on Sunday '+S.wk+', so its plan is locked. Use ‹ › to plan an upcoming week.':'Must be saved before Sunday '+S.wk+'. Shared with all 7 classes.'}</div>${DAYS.map((n,d)=>{const h=holOf(S.wk,d),dis=lk||h?'disabled':'',subs=(S.plans[S.wk+'_'+d]||{}).subs||[];return `<div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:6px"><b>${n} ${dayDate(S.wk,d)}</b>${h?' · 🏖️ '+esc(h):''}<input id="act${d}" ${dis} placeholder="${h?'Holiday':'Activity'}" value="${esc(planOf(S.wk,d)[0])}">${[0,1,2,3,4].map(i=>`<input id="sub${d}_${i}" ${dis} placeholder="Sub-activity ${i+1}" style="width:calc(100% - 16px);margin-left:16px" value="${esc(subs[i]||'')}">`).join('')}</div>`}).join('')}${lk?'':'<p><button class="btn" onclick="savePlan()">Save week plan</button></p>'}</div>`;
+}
+function catchup(c){
+  const ms=S.miss.filter(m=>m.c==c);
+  const by={};ms.forEach(m=>(by[m.sid]=by[m.sid]||[]).push(m));
+  const ids=Object.keys(by).sort((a,b)=>stuName(c,a).localeCompare(stuName(c,b)));
+  let h=`<div class="card mu">Missed activities still to be done. When a child completes one later, tap ✓ Done and it is removed.</div>`;
+  if(!ids.length)h+=`<div class="card">🎉 Nothing outstanding.</div>`;
+  ids.forEach(id=>{h+=`<div class="card"><h3>${esc(stuName(c,id))} <span class="badge">${by[id].length}</span></h3>${by[id].sort((a,b)=>(a.week+a.d+a.a)<(b.week+b.d+b.a)?-1:1).map(m=>`<div class="row sp" style="padding:5px 0;border-top:1px solid var(--bd)"><div><b>${esc(actName(m.week,m.d,m.a))}</b><div class="mu">${DAYS[m.d]} ${dayDate(m.week,m.d)} · ${esc(m.reason)}</div></div><button class="btn ok" onclick="doneLater('${mkey(m)}')">✓ Done</button></div>`).join('')}</div>`});
+  return h;
+}
+function students(){return `<div class="card"><h3>${NAME(S.me)} students</h3><div class="mu">One name per line.</div><textarea id="names" rows="12">${esc(ros(S.me).map(s=>s.n).join('\n'))}</textarea><p><button class="btn" onclick="saveRoster()">Save students</button></p></div>`}
+function stats(c){
+  const ms=S.miss.filter(m=>m.c==c),wm=ms.filter(m=>m.week==S.wk);
+  const rows=ros(c).map(s=>({n:s.n,w:wm.filter(m=>m.sid==s.id).length,t:ms.filter(m=>m.sid==s.id).length}));
+  const weeks=[...new Set(ms.map(m=>m.week))].sort().reverse();
+  return weekBar()+`<div class="card"><h3>${NAME(c)} – children with misses</h3><div class="wrap"><table><tr><th>Child</th><th>This week</th><th>Outstanding total</th></tr>${rows.filter(r=>r.w||r.t).map(r=>`<tr><td>${esc(r.n)}</td><td>${r.w}</td><td>${r.t}</td></tr>`).join('')||'<tr><td colspan=3 class="mu">None</td></tr>'}</table></div></div>`+
+  `<div class="card"><h3>Who missed what (week)</h3>${wm.length?[...new Set(wm.map(m=>m.d+'_'+m.a))].sort().map(k=>{const[d,a]=k.split('_').map(Number);return `<p><b>${DAYS[d]} – ${esc(actName(S.wk,d,a))}</b><br>${wm.filter(m=>m.d==d&&m.a==a).map(m=>esc(stuName(c,m.sid))+' ('+esc(m.reason)+')').join(', ')}</p>`}).join(''):'<span class="mu">No misses this week.</span>'}</div>`+
+  `<div class="card"><h3>Previous weeks</h3><table><tr><th>Week</th><th>Missed</th></tr>${weeks.map(x=>`<tr><td>${x}</td><td>${ms.filter(m=>m.week==x).length}</td></tr>`).join('')||'<tr><td class="mu">—</td></tr>'}</table></div>`;
+}
+function overview(){
+  const weeks=[...new Set(S.miss.map(m=>m.week).concat(S.wk))].sort().reverse();
+  const cell=(c,wk)=>S.miss.filter(m=>m.c==c&&m.week==wk).length;
+  return weekBar()+`<div class="card"><h3>This week – by class</h3><table><tr><th>Class</th><th>Children</th><th>Missed</th><th>Children affected</th></tr>${CL.map(c=>{const wm=S.miss.filter(m=>m.c==c&&m.week==S.wk);return `<tr><td>${NAME(c)}</td><td>${ros(c).length}</td><td>${wm.length}</td><td>${new Set(wm.map(m=>m.sid)).size}</td></tr>`}).join('')}</table></div>`+
+  `<div class="card"><h3>All weeks – missed by class</h3><div class="wrap"><table><tr><th>Week</th>${CL.map(c=>`<th>${NAME(c).slice(0,3)}</th>`).join('')}<th>Σ</th></tr>${weeks.map(x=>`<tr><td>${x.slice(5)}</td>${CL.map(c=>`<td>${cell(c,x)}</td>`).join('')}<td><b>${S.miss.filter(m=>m.week==x).length}</b></td></tr>`).join('')}</table></div></div>`+
+  `<div class="card"><h3>Plan this week</h3>${DAYS.map((n,d)=>`<p><b>${n}</b><br>${holOf(S.wk,d)?'🏖️ '+esc(holOf(S.wk,d)):planOf(S.wk,d).filter(Boolean).map(esc).join(' · ')||'<span class="mu">—</span>'}</p>`).join('')}</div>`;
+}
+function clsPick(){return `<select onchange="S.cls=this.value;render()">${CL.map(c=>`<option value="${c}" ${S.cls==c?'selected':''}>${NAME(c)}</option>`).join('')}</select>`}
+function report(){
+  const c=S.cls,ms=S.miss.filter(m=>m.c==c);
+  return `<div class="card"><h3>Year report</h3>${clsPick()}</div>`+
+  ros(c).map(s=>({s,l:ms.filter(m=>m.sid==s.id)})).sort((a,b)=>b.l.length-a.l.length).map(({s,l})=>`<div class="card"><div class="row sp"><b>${esc(s.n)}</b><span class="badge">${l.length}</span></div>${l.sort((a,b)=>(a.week+a.d)<(b.week+b.d)?-1:1).map(m=>`<div class="mu">${m.week.slice(5)} ${DAYS[m.d]} – ${esc(actName(m.week,m.d,m.a))} (${esc(m.reason)})</div>`).join('')}</div>`).join('')||'<div class="card mu">No students.</div>';
+}
+async function csv(){
+  const c=S.me,rows=[['Child','Week','Day','Activity','Reason']];
+  S.miss.filter(m=>m.c==c).sort((a,b)=>(a.week+a.d)<(b.week+b.d)?-1:1).forEach(m=>rows.push([stuName(c,m.sid),m.week,DAYS[m.d],actName(m.week,m.d,m.a),m.reason]));
+  const sd=sdays(),keys=new Set(sd.map(p=>p.week+'_'+p.d));
+  rows.push([],['Attendance summary'],['Child','School days','Absence days','Attendance days']);
+  ros(c).forEach(s=>{const n=S.abs.filter(a=>a.c==c&&a.sid==s.id&&keys.has(a.week+'_'+a.d)).length;rows.push([s.n,sd.length,n,sd.length-n])});
+  const t=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  try{const b=new Blob(['\ufeff'+t],{type:'text/csv;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=NAME(c)+'-report.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}catch(e){S.msg='Download not available';render()}
+}
+const csvCard=()=>`<div class="card"><h3>Year report (CSV)</h3><div class="mu">Missed activities per child plus an attendance summary for your class.</div><p><button class="btn" onclick="csv()">Download CSV – ${NAME(S.me)}</button></p></div>`;
+const subsOf=d=>(S.plans[S.wk+'_'+d]||{}).subs||[];
+const stOf=(d,i)=>{const x=S.done.find(x=>x.week==S.wk&&x.c==S.me&&x.d==d&&x.i==i);return x?(x.status||'done'):'pending'};
+function setSt(d,i,st){
+  const cur=stOf(d,i),ref=S.db.doc('done/'+[S.wk,S.me,d,i].join('_'));
+  S.done=S.done.filter(x=>!(x.week==S.wk&&x.c==S.me&&x.d==d&&x.i==i));
+  if(cur==st){w(()=>ref.delete())}else{const o={week:S.wk,c:S.me,d,i,status:st};S.done.push(o);w(()=>ref.set(o))}
+  render();
+}
+function cnt(ds){
+  let tot=0,dn=0,cn=0;const rem=[];
+  ds.forEach(d=>{if(holOf(S.wk,d))return;subsOf(d).forEach((t,i)=>{if(!t)return;tot++;const s=stOf(d,i);if(s=='done')dn++;else if(s=='cancelled')cn++;else rem.push(DAYS[d]+': '+t)})});
+  return{tot,dn,cn,left:tot-dn-cn,rem,pct:tot-cn?Math.round(dn*100/(tot-cn)):0};
+}
+const prog=(t,c)=>`<div class="card"><h3>${t}</h3><b>${c.dn} done \u00b7 ${c.left} remaining</b>${c.cn?' \u00b7 '+c.cn+' cancelled':''}<div class="mu">${c.pct}% of the active sub-activities (${c.tot-c.cn})</div><div style="height:8px;background:var(--bd);border-radius:9px;margin:8px 0"><div style="height:8px;width:${c.pct}%;background:var(--ok);border-radius:9px"></div></div></div>`;
+function progress(){
+  const dy=S.pv=='day',d=S.day;
+  let h=weekBar()+`<div class="row" style="margin-bottom:10px;flex-wrap:nowrap"><button class="btn ${dy?'':'sec'}" style="flex:1" onclick="S.pv='day';render()">Daily</button><button class="btn ${dy?'sec':''}" style="flex:1" onclick="S.pv='week';render()">Weekly</button></div>`;
+  if(dy){
+    const hol=holOf(S.wk,d),subs=subsOf(d);
+    h+=dayBar()+(hol?`<div class="card"><h3>🏖️ Holiday</h3>${esc(hol)}</div>`:prog('Today – '+DAYS[d],cnt([d]))+`<div class="card"><h3>${esc(planOf(S.wk,d)[0]||'Activity')}</h3>${subs.map((t,i)=>{if(!t)return'';const s=stOf(d,i);return `<div class="row sp" style="padding:5px 0;border-top:1px solid var(--bd);flex-wrap:nowrap"><div style="${s=='cancelled'?'text-decoration:line-through;opacity:.6':''}">${s=='done'?'✅':s=='cancelled'?'❌':'⬜'} ${i+1}. ${esc(t)}</div><span class="mu">${s=='pending'?'remaining':s}</span></div>`}).join('')||'<span class="mu">No plan for this day yet.</span>'}</div>`);
+  }else{
+    const c=cnt([0,1,2,3,4]);
+    h+=prog('Week of '+S.wk,c)+`<div class="card"><h3>Week by day</h3><div class="wrap"><table><tr><th>Day</th><th>Done</th><th>Left</th><th>Cancelled</th></tr>${DAYS.map((n,x)=>{const k=cnt([x]);return `<tr><td>${n} ${dayDate(S.wk,x)}</td>${holOf(S.wk,x)?'<td colspan=3 class="mu">🏖️ Holiday</td>':`<td>${k.dn}</td><td>${k.left}</td><td>${k.cn}</td>`}</tr>`}).join('')}</table></div></div>`+(c.rem.length?`<div class="card"><h3>Still remaining this week</h3>${c.rem.map(x=>`<div class="mu">• ${esc(x)}</div>`).join('')}</div>`:'');
+  }
+  const ws=[...new Set(Object.values(S.plans).map(p=>p.week))].sort().reverse(),cur=S.wk;
+  const rows=ws.map(x=>{S.wk=x;const k=cnt([0,1,2,3,4]);S.wk=cur;return `<tr><td>${x.slice(5)}</td><td>${k.dn}</td><td>${k.left}</td><td>${k.cn}</td><td>${k.pct}%</td></tr>`}).join('');
+  return h+`<div class="card"><h3>All weeks</h3><div class="wrap"><table><tr><th>Week</th><th>Done</th><th>Left</th><th>Cancelled</th><th>%</th></tr>${rows||'<tr><td colspan=5 class="mu">No plans yet.</td></tr>'}</table></div></div>`;
+}
+function check(){
+  const d=S.day,h=holOf(S.wk,d),title=planOf(S.wk,d)[0],subs=subsOf(d),wk=cnt([0,1,2,3,4]),dy=cnt([d]);
+  const body=h?`<div class="card"><h3>🏖️ Holiday</h3>${esc(h)}</div>`:(!title&&!subs.some(Boolean))?'<div class="card mu">No plan for this day yet.</div>':`<div class="card"><h3>${esc(title||'Activity')}</h3><div class="mu">\u2713 = done by your class \u00b7 \u2715 = cancelled (not counted as remaining). Tap again to undo.</div>${subs.map((t,i)=>{if(!t)return'';const s=stOf(d,i);return `<div class="row" style="padding:6px 0;border-top:1px solid var(--bd);flex-wrap:nowrap"><div style="flex:1;${s=='cancelled'?'text-decoration:line-through;opacity:.6':''}">${s=='done'?'\u2705':s=='cancelled'?'\u274C':'\u2B1C'} ${i+1}. ${esc(t)}</div><button class="btn ${s=='done'?'ok':'sec'}" onclick="setSt(${d},${i},'done')">\u2713</button><button class="btn ${s=='cancelled'?'bad':'sec'}" onclick="setSt(${d},${i},'cancelled')">\u2715</button></div>`}).join('')}</div>`;
+  const tbl=`<div class="card"><h3>Week by day</h3><div class="wrap"><table><tr><th>Day</th><th>Done</th><th>Left</th><th>Cancelled</th></tr>${DAYS.map((n,x)=>{const c=cnt([x]);return `<tr><td>${n} ${dayDate(S.wk,x)}</td>${holOf(S.wk,x)?'<td colspan=3 class="mu">🏖️ Holiday</td>':`<td>${c.dn}</td><td>${c.left}</td><td>${c.cn}</td>`}</tr>`}).join('')}</table></div></div>`;
+  return weekBar()+dayBar()+prog('Today \u2013 '+DAYS[d],dy)+body+(false?`<div class="card"><h3>Still remaining this week</h3>${wk.rem.map(x=>`<div class="mu">\u2022 ${esc(x)}</div>`).join('')}</div>`:'');
+}
+
+function sdays(){return Object.values(S.plans).filter(p=>p.acts&&p.acts[0]&&!holOf(p.week,p.d)&&shift(p.week,p.d)<=iso(new Date()))}
+function attend(c){
+  const sd=sdays(),keys=new Set(sd.map(p=>p.week+'_'+p.d)),wd=sd.filter(p=>p.week==S.wk).length;
+  const rows=ros(c).map(s=>{const ab=S.abs.filter(a=>a.c==c&&a.sid==s.id&&keys.has(a.week+'_'+a.d)),aw=ab.filter(a=>a.week==S.wk).length;return `<tr><td>${esc(s.n)}</td><td>${wd-aw}/${wd}</td><td>${aw}</td><td><b>${sd.length-ab.length}/${sd.length}</b></td><td>${ab.length}</td></tr>`}).join('');
+  return weekBar()+`<div class="card"><h3>${NAME(c)} – attendance</h3><div class="mu">Attendance days = school days − absence days (marked Absent or Sick). School days = days with an activity planned, not holidays, up to today.</div><p>School days this week: <b>${wd}</b> · in total: <b>${sd.length}</b></p><div class="wrap"><table><tr><th>Child</th><th>Week present</th><th>Week abs.</th><th>Total present</th><th>Total abs.</th></tr>${rows||'<tr><td colspan=5 class="mu">No students.</td></tr>'}</table></div></div>`;
+}
+function holCard(){
+  const list=Object.keys(S.hol).sort();
+  return `<div class="card"><h3>🏖️ National / special holidays</h3><div class="mu">Days with no activities, for all 7 classes. Choose the first and last day (same date for one day).</div><label class="mu">From</label><input id="hf" type="date"><label class="mu">To</label><input id="ht" type="date"><input id="hn" placeholder="Name (e.g. National Day, Eid break)"><p><button class="btn" onclick="addHol()">Add holiday</button></p>${list.map(d=>`<div class="row sp" style="padding:5px 0;border-top:1px solid var(--bd)"><div><b>${d}</b> ${esc(S.hol[d])}</div><button class="btn sec" onclick="delHol('${d}')">Remove</button></div>`).join('')||'<span class="mu">No holidays added.</span>'}</div>`;
+}
+function addHol(){
+  const f=$('hf').value,t=$('ht').value||f,n=$('hn').value.trim()||'Holiday';
+  if(!f||t<f){S.msg='Choose valid dates';return render()}
+  const d=new Date(f+'T12:00:00'),end=new Date(t+'T12:00:00');let k=0;
+  while(d<=end&&k<120){const x=iso(d);S.hol[x]=n;w(()=>S.db.doc('holiday/'+x).set({date:x,name:n}));
+    S.miss.filter(m=>shift(m.week,m.d)==x).forEach(m=>doneLater(mkey(m)));d.setDate(d.getDate()+1);k++}
+  S.msg='Holiday added ✓';render();
+}
+function delHol(x){delete S.hol[x];w(()=>S.db.doc('holiday/'+x).delete());render()}
+function help(){
+  const sup=S.me[0]=='s';
+  const li=a=>'<ol>'+a.map(x=>'<li style="margin:6px 0">'+x+'</li>').join('')+'</ol>';
+  const back=`<p><button class="btn" onclick="setTab('${sup?'overview':'today'}')">← Back to the app</button></p>`;
+  if(sup)return `<div class="card"><h3>How to use – Supervisor</h3><div class="mu">You can view everything but not change anything.</div></div>
+  <div class="card"><h3>Overview</h3>${li(['Use ‹ › to pick a week.','See each class: number of children, missed activities, and how many children were affected.','The table below shows every past week for all 7 classes (columns = first 3 letters of the class name).','The week\'s plan (one activity per day) is listed at the bottom.'])}</div>
+  <div class="card"><h3>Class details</h3>${li(['Choose a class from the list.','See which children missed which activity this week, their outstanding totals, and previous weeks.','Below that, the list of missed activities still waiting to be made up.'])}</div>
+  <div class="card"><h3>Year report</h3>${li(['Choose a class to see every child with each missed activity named, with date and reason.','Only activities not yet made up count as missed.'])}</div>${back}`;
+  return `<div class="card"><h3>How to use – Class teachers</h3><div class="mu">Use the buttons at the bottom of the screen to move between tabs.</div></div>
+  <div class="card"><h3>1. First time: add your children</h3>${li(['Open <b>Students</b>.','Type or paste the names, one per line.','Tap <b>Save students</b>. You can add or remove names later.'])}</div>
+  <div class="card"><h3>2. Before each week: the plan</h3>${li(['Only the class preparing that week does this (any class can).','Open <b>Plan</b> and use ‹ › to go to the coming week.','For each day, Sunday to Thursday, type the activity and its 5 sub-activities, then tap <b>Save week plan</b>.','Do it <b>before Sunday</b>: once the week starts the plan is locked 🔒.','All 7 classes see the plan automatically.','For national or special holidays use the <b>Holidays</b> card at the bottom of Plan: pick the first and last day, a name, and tap <b>Add holiday</b>. Those days show 🏖️ and nothing is marked.'])}</div>
+  <div class="card"><h3>3. Every day: mark who missed</h3>${li(['Open <b>Today</b> and tap the day.','Pick a reason at the top: Absent, Sick or Other.','Tap each child who did NOT do the activity. They turn red.','Tapped by mistake? Tap the child again to undo.','Absent and Sick count as absence days in the <b>Attendance</b> tab (attendance days = school days − absence days). Other does not.','At the end of the year open <b>Stats</b> and tap <b>Download CSV</b> for your class report.'])}</div>
+  <div class="card"><h3>4. When a child catches up</h3>${li(['Open <b>Catch-up</b> to see each child\'s outstanding activities.','Tap <b>✓ Done</b> next to the activity. It is removed from the child\'s list.'])}</div>
+  <div class="card"><h3>Tracking your own tasks</h3>${li(['Open <b>Tasks</b> and pick the day.','Tap ✓ when your class has done a sub-activity, or ✕ if it was cancelled (tap again to undo).','Open <b>Progress</b> to see what is done and remaining, daily or weekly, plus all previous weeks. Cancelled sub-activities are not counted as remaining.'])}</div>
+  <div class="card"><h3>5. End of week: statistics</h3>${li(['Open <b>Stats</b> and pick the week with ‹ ›.','See who missed which activity, each child\'s outstanding total, and a count for previous weeks.'])}</div>${back}`;
+}
+function render(){
+  const a=$('app');
+  if(!S.me){a.innerHTML=`<header><b>🧸 Playschool Tracker</b></header><main><div class="card pin"><h3>Sign in</h3><select id="role">${Object.keys(PINS).map(r=>`<option value="${r}">${NAME(r)}</option>`).join('')}</select><input id="pin" type="password" inputmode="numeric" placeholder="PIN"><button class="btn" onclick="login()">Enter</button><div class="mu">${esc(S.msg)}</div></div></main>`;return}
+  const sup=S.me[0]=='s';
+  const tabs=sup?[['overview','Overview'],['classes','Class details'],['attendance','Attendance'],['report','Year report']]:[['today','Today'],['plan','Plan'],['check','Tasks'],['progress','Progress'],['catchup','Catch-up'],['stats','Stats'],['attendance','Attendance'],['students','Students']];
+  let body='';
+  if(S.tab=='help')body=help();else if(!S.ready&&!S.msg)body='<div class="card">Loading…</div>';else{
+  if(sup){body=S.tab=='overview'?overview():S.tab=='classes'?`<div class="card">${clsPick()}</div>`+stats(S.cls)+catchup(S.cls).replace(/onclick="doneLater[^"]*"/g,'hidden'):S.tab=='attendance'?`<div class="card">${clsPick()}</div>`+attend(S.cls):report()}
+  else body={today,plan:()=>plan()+holCard(),check,progress,catchup:()=>catchup(S.me),stats:()=>stats(S.me)+csvCard(),attendance:()=>attend(S.me),students}[S.tab]()}
+  a.innerHTML=`<header><b>🧸 ${NAME(S.me)}</b><span><button onclick="setTab('help')">? Help</button> <button onclick="logout()">Sign out</button></span></header><main>${S.msg?`<div class="card">${esc(S.msg)}</div>`:''}${body}</main><nav>${tabs.map(([k,l])=>`<button class="${S.tab==k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</nav>`;
+}
+init();
+</script></body></html>
