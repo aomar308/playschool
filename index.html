@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Playschool Tracker</title>
+<link rel="manifest" href="manifest.json"><link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-title" content="Playschool Plan">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#ef6c4d">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
@@ -33,15 +34,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;b
 </head><body><div id="app"></div>
 <script>
 /* ====== SETUP: paste your Firebase web-app settings here (see SETUP.md) ====== */
-const firebaseConfig = {
-  apiKey: "AIzaSyAI1LgBnahayaS6Xwi3LT_swFdsaoRwTLM",
-  authDomain: "playschool-tracker-e2131.firebaseapp.com",
-  projectId: "playschool-tracker-e2131",
-  storageBucket: "playschool-tracker-e2131.firebasestorage.app",
-  messagingSenderId: "279129158338",
-  appId: "1:279129158338:web:c0a05db075d813425d815b",
-  measurementId: "G-9X0293LWSJ"
-};
+const FIREBASE_CONFIG={apiKey:"AIzaSyAI1LgBnahayaS6Xwi3LT_swFdsaoRwTLM",authDomain:"playschool-tracker-e2131.firebaseapp.com",projectId:"playschool-tracker-e2131",storageBucket:"playschool-tracker-e2131.firebasestorage.app",messagingSenderId:"279129158338",appId:"1:279129158338:web:c0a05db075d813425d815b",measurementId:"G-9X0293LWSJ"};
 const DEMO=false; /* true = demo copy: plan is never locked */
 /* =========================================================================== */
 const PINS={c1:'1111',c2:'2222',c3:'3333',c4:'4444',c5:'5555',c6:'6666',c7:'7777',s1:'1234',s2:'1234'};
@@ -255,7 +248,7 @@ function help(){
 }
 function render(){
   const a=$('app');
-  if(!S.me){a.innerHTML=`<header><b>🧸 Playschool Tracker</b></header><main><div class="card pin"><h3>Sign in</h3><select id="role">${Object.keys(PINS).map(r=>`<option value="${r}">${NAME(r)}</option>`).join('')}</select><input id="pin" type="password" inputmode="numeric" placeholder="PIN"><button class="btn" onclick="login()">Enter</button><div class="mu">${esc(S.msg)}</div><div class="mu" style="text-align:center">version R2</div></div></main>`;return}
+  if(!S.me){a.innerHTML=`<header><b>🧸 Playschool Tracker</b></header><main><div class="card pin"><h3>Sign in</h3><select id="role">${Object.keys(PINS).map(r=>`<option value="${r}">${NAME(r)}</option>`).join('')}</select><input id="pin" type="password" inputmode="numeric" placeholder="PIN"><button class="btn" onclick="login()">Enter</button><div class="mu">${esc(S.msg)}</div><div class="mu" style="text-align:center">version R3</div></div></main>`;return}
   const sup=S.me[0]=='s';
   const tabs=sup?[['overview','Overview'],['classes','Class details'],['attendance','Attendance'],['report','Year report']]:[['today','Today'],['plan','Plan'],['check','Tasks'],['progress','Progress'],['catchup','Catch-up'],['stats','Stats'],['attendance','Attendance'],['students','Students']];
   let body='';
