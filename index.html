@@ -98,7 +98,7 @@ function toggleMiss(sid,a){
   else{S.miss.push(m);if(m.reason!='Other'){S.abs.push(m);w(()=>aref.set(m))}render();w(()=>ref.set(m))}
 }
 function doneLater(k){S.miss=S.miss.filter(x=>mkey(x)!=k);render();w(()=>S.db.doc('miss/'+k).delete())}
-function planLocked(){return !DEMO&&iso(new Date())>=S.wk}
+function planLocked(){return false}
 function savePlan(){
   if(planLocked())return;
   [0,1,2,3,4].forEach(d=>{const acts=[$('act'+d).value.trim(),'','','',''],subs=[0,1,2,3,4].map(i=>$('sub'+d+'_'+i).value.trim());
@@ -133,7 +133,7 @@ function today(){
 }
 function plan(){
   const lk=planLocked();
-  return weekBar()+`<div class="card"><h3>Weekly plan – one activity per day, 5 sub-activities each</h3><div class="mu">${lk?'🔒 This week started on Sunday '+S.wk+', so its plan is locked. Use ‹ › to plan an upcoming week.':'Must be saved before Sunday '+S.wk+'. Shared with all 7 classes.'}</div>${DAYS.map((n,d)=>{const h=holOf(S.wk,d),dis=lk||h?'disabled':'',subs=(S.plans[S.wk+'_'+d]||{}).subs||[];return `<div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:6px"><b>${n} ${dayDate(S.wk,d)}</b>${h?' · 🏖️ '+esc(h):''}<input id="act${d}" ${dis} placeholder="${h?'Holiday':'Activity'}" value="${esc(planOf(S.wk,d)[0])}">${[0,1,2,3,4].map(i=>`<input id="sub${d}_${i}" ${dis} placeholder="Sub-activity ${i+1}" style="width:calc(100% - 16px);margin-left:16px" value="${esc(subs[i]||'')}">`).join('')}</div>`}).join('')}${lk?'':'<p><button class="btn" onclick="savePlan()">Save week plan</button></p>'}</div>`;
+  return weekBar()+`<div class="card"><h3>Weekly plan – one activity per day, 5 sub-activities each</h3><div class="mu">${lk?'🔒 This week started on Sunday '+S.wk+', so its plan is locked. Use ‹ › to plan an upcoming week.':'Plan before Sunday '+S.wk+' where possible. Past weeks can still be edited. Shared with all 7 classes.'}</div>${DAYS.map((n,d)=>{const h=holOf(S.wk,d),dis=lk||h?'disabled':'',subs=(S.plans[S.wk+'_'+d]||{}).subs||[];return `<div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:6px"><b>${n} ${dayDate(S.wk,d)}</b>${h?' · 🏖️ '+esc(h):''}<input id="act${d}" ${dis} placeholder="${h?'Holiday':'Activity'}" value="${esc(planOf(S.wk,d)[0])}">${[0,1,2,3,4].map(i=>`<input id="sub${d}_${i}" ${dis} placeholder="Sub-activity ${i+1}" style="width:calc(100% - 16px);margin-left:16px" value="${esc(subs[i]||'')}">`).join('')}</div>`}).join('')}${lk?'':'<p><button class="btn" onclick="savePlan()">Save week plan</button></p>'}</div>`;
 }
 function catchup(c){
   const ms=S.miss.filter(m=>m.c==c);
@@ -248,7 +248,7 @@ function help(){
 }
 function render(){
   const a=$('app');
-  if(!S.me){a.innerHTML=`<header><b>🧸 Playschool Tracker</b></header><main><div class="card pin"><h3>Sign in</h3><select id="role">${Object.keys(PINS).map(r=>`<option value="${r}">${NAME(r)}</option>`).join('')}</select><input id="pin" type="password" inputmode="numeric" placeholder="PIN"><button class="btn" onclick="login()">Enter</button><div class="mu">${esc(S.msg)}</div><div class="mu" style="text-align:center">version R3</div></div></main>`;return}
+  if(!S.me){a.innerHTML=`<header><b>🧸 Playschool Tracker</b></header><main><div class="card pin"><h3>Sign in</h3><select id="role">${Object.keys(PINS).map(r=>`<option value="${r}">${NAME(r)}</option>`).join('')}</select><input id="pin" type="password" inputmode="numeric" placeholder="PIN"><button class="btn" onclick="login()">Enter</button><div class="mu">${esc(S.msg)}</div><div class="mu" style="text-align:center">version R5</div></div></main>`;return}
   const sup=S.me[0]=='s';
   const tabs=sup?[['overview','Overview'],['classes','Class details'],['attendance','Attendance'],['report','Year report']]:[['today','Today'],['plan','Plan'],['check','Tasks'],['progress','Progress'],['catchup','Catch-up'],['stats','Stats'],['attendance','Attendance'],['students','Students']];
   let body='';
@@ -257,6 +257,6 @@ function render(){
   else body={today,plan:()=>plan()+holCard(),check,progress,catchup:()=>catchup(S.me),stats:()=>stats(S.me)+csvCard(),attendance:()=>attend(S.me),students}[S.tab]()}
   a.innerHTML=`<header><b>🧸 ${NAME(S.me)}</b><span><button onclick="setTab('help')">? Help</button> <button onclick="logout()">Sign out</button></span></header><main>${S.msg?`<div class="card">${esc(S.msg)}</div>`:''}${body}</main><nav>${tabs.map(([k,l])=>`<button class="${S.tab==k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</nav>`;
 }
-if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(r=>r.forEach(x=>x.unregister())).catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 init();
 </script></body></html>
